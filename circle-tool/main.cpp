@@ -18,6 +18,7 @@ public:
 	CCLabelBMFont* m_label = nullptr;
 	CCNode* m_basic_squish = nullptr;
 	CCNode* m_advanced_squish = nullptr;
+	CCMenuItemToggler* m_advanced_toggle = nullptr;
 	TextInput* m_horizontal_input = nullptr;
 	TextInput* m_vertical_input = nullptr;
 
@@ -113,7 +114,6 @@ public:
 			this->update_labels();
 		});
 		m_advanced_squish->addChildAtPosition(m_vertical_input, Anchor::Center, ccp(60, -6));
-		m_advanced_squish->setVisible(m_advanced_squash_enabled);
 		layer->addChildAtPosition(m_advanced_squish, Anchor::Center, ccp(0, 20));
 
 		layer->addChildAtPosition(
@@ -121,12 +121,12 @@ public:
 					.setScale(0.52f),
 			Anchor::Center, ccp(-15, -34)
 		);
-		auto developer_toggle = CCMenuItemToggler::createWithStandardSprites(
+		m_advanced_toggle = CCMenuItemToggler::createWithStandardSprites(
 			this, menu_selector(CircleToolPopup::on_advanced_squash), 0.65f
 		);
-		developer_toggle->toggle(m_advanced_squash_enabled);
-		menu->addChildAtPosition(developer_toggle, Anchor::Center, ccp(-112, -34));
-		m_basic_squish->setVisible(!m_advanced_squash_enabled);
+		m_advanced_toggle->toggle(m_advanced_squash_enabled);
+		menu->addChildAtPosition(m_advanced_toggle, Anchor::Center, ccp(-112, -34));
+		this->set_squash_controls_visible(m_advanced_squash_enabled);
 
 		float button_width = 68;
 		menu->addChildAtPosition(
@@ -172,10 +172,18 @@ public:
 		m_label->setString(fmt::format("Copies: {}\nObjects: {}", amt, obj_count).c_str());
 	}
 
-	void on_advanced_squash(CCObject* sender) {
-		m_advanced_squash_enabled = static_cast<CCMenuItemToggler*>(sender)->isToggled();
+	void set_squash_controls_visible(bool advanced) {
+		m_advanced_squash_enabled = advanced;
+		m_basic_squish->setVisible(!advanced);
+		m_advanced_squish->setVisible(advanced);
+	}
 
-		if (m_advanced_squash_enabled) {
+	void on_advanced_squash(CCObject*) {
+		// CCMenuItemToggler invokes the callback before changing its state.
+		const bool advanced = !m_advanced_toggle->isToggled();
+		m_advanced_toggle->toggle(advanced);
+
+		if (advanced) {
 			// Carry the existing vertical squish value into advanced mode.
 			m_vertical_squish = m_fat;
 			m_vertical_input->setString(fmt::to_string(m_vertical_squish));
@@ -184,8 +192,7 @@ public:
 			m_fat = m_vertical_squish;
 		}
 
-		m_basic_squish->setVisible(!m_advanced_squash_enabled);
-		m_advanced_squish->setVisible(m_advanced_squash_enabled);
+		this->set_squash_controls_visible(advanced);
 		this->update_labels();
 	}
 

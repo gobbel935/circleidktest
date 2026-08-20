@@ -1,4 +1,5 @@
 ## Unreleased
+- Fix the `Advanced Squash` toggle so advanced controls appear when enabled and the basic `Squish` control returns when disabled.
 - Add an `Advanced Squash` toggle that reveals independent `Squash Horizontal` and `Squash Vertical` controls.
 
 ## 1.2.3
