@@ -1,3 +1,6 @@
+## Unreleased
+- Add a `DEVELOPER MODE` toggle to expose independent horizontal and vertical squish controls.
+
 ## 1.2.3
 - Remake the popup using Geode's classes, preventing a touch handler leak
   - This fixes an issue with the Better Touch Prio mod

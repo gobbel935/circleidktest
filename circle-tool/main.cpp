@@ -1,5 +1,5 @@
-#include <Geode/Geode.hpp>
 #include <Geode/modify/EditorUI.hpp>
+#include <Geode/binding/CCMenuItemToggler.hpp>
 #include <nodes.hpp>
 
 using namespace geode;
@@ -11,7 +11,15 @@ public:
 	static float m_angle;
 	static float m_step;
 	static float m_fat;
+	static float m_horizontal_squish;
+	static float m_vertical_squish;
+	static bool m_developer_mode;
+
 	CCLabelBMFont* m_label = nullptr;
+	CCNode* m_basic_squish = nullptr;
+	CCNode* m_advanced_squish = nullptr;
+	TextInput* m_horizontal_input = nullptr;
+	TextInput* m_vertical_input = nullptr;
 
 	static CircleToolPopup* create() {
 		auto* node = new CircleToolPopup();
@@ -25,7 +33,7 @@ public:
 	}
 
 	bool init() override {
-		if (!Popup::init(300, 220)) return false;
+		if (!Popup::init(300, 260)) return false;
 
 		this->setTitle("Circle Tool");
 
@@ -35,7 +43,7 @@ public:
 		layer->addChildAtPosition(
 			NodeFactory<CCLabelBMFont>::start("Arc", "goldFont.fnt")
 				.setScale(0.75f),
-			Anchor::Center, ccp(-60, 64)
+			Anchor::Center, ccp(-60, 84)
 		);
 		auto angle_input = geode::TextInput::create(60.f, "");
 		angle_input->setCommonFilter(CommonFilter::Float);
@@ -44,12 +52,12 @@ public:
 			m_angle = geode::utils::numFromString<float>(str).unwrapOr(m_angle);
 			this->update_labels();
 		});
-		layer->addChildAtPosition(angle_input, Anchor::Center, ccp(-60, 38));
+		layer->addChildAtPosition(angle_input, Anchor::Center, ccp(-60, 58));
 
 		layer->addChildAtPosition(
 			NodeFactory<CCLabelBMFont>::start("Step", "goldFont.fnt")
 				.setScale(0.75f),
-			Anchor::Center, ccp(60, 64)
+			Anchor::Center, ccp(60, 84)
 		);
 		auto step_input = geode::TextInput::create(60.f, "");
 		step_input->setCommonFilter(CommonFilter::Float);
@@ -59,12 +67,13 @@ public:
 			if (m_step == 0.f) m_step = 1.f;
 			this->update_labels();
 		});
-		layer->addChildAtPosition(step_input, Anchor::Center, ccp(60, 38));
+		layer->addChildAtPosition(step_input, Anchor::Center, ccp(60, 58));
 
-		layer->addChildAtPosition(
+		m_basic_squish = CCNode::create();
+		m_basic_squish->addChildAtPosition(
 			NodeFactory<CCLabelBMFont>::start("Squish", "goldFont.fnt")
 				.setScale(0.75f),
-			Anchor::Center, ccp(60, 10)
+			Anchor::Center, ccp(0, 20)
 		);
 		auto fat_input = geode::TextInput::create(60.f, "");
 		fat_input->setCommonFilter(CommonFilter::Float);
@@ -73,7 +82,51 @@ public:
 			m_fat = geode::utils::numFromString<float>(str).unwrapOr(m_fat);
 			this->update_labels();
 		});
-		layer->addChildAtPosition(fat_input, Anchor::Center, ccp(60, -16));
+		m_basic_squish->addChildAtPosition(fat_input, Anchor::Center, ccp(0, -6));
+		layer->addChildAtPosition(m_basic_squish, Anchor::Center, ccp(60, 20));
+
+		m_advanced_squish = CCNode::create();
+		m_advanced_squish->addChildAtPosition(
+			NodeFactory<CCLabelBMFont>::start("Horizontal", "goldFont.fnt")
+				.setScale(0.62f),
+			Anchor::Center, ccp(-60, 20)
+		);
+		m_horizontal_input = geode::TextInput::create(60.f, "");
+		m_horizontal_input->setCommonFilter(CommonFilter::Float);
+		m_horizontal_input->setString(fmt::to_string(m_horizontal_squish));
+		m_horizontal_input->setCallback([this](std::string const& str) {
+			m_horizontal_squish = geode::utils::numFromString<float>(str).unwrapOr(m_horizontal_squish);
+			this->update_labels();
+		});
+		m_advanced_squish->addChildAtPosition(m_horizontal_input, Anchor::Center, ccp(-60, -6));
+
+		m_advanced_squish->addChildAtPosition(
+			NodeFactory<CCLabelBMFont>::start("Vertical", "goldFont.fnt")
+				.setScale(0.62f),
+			Anchor::Center, ccp(60, 20)
+		);
+		m_vertical_input = geode::TextInput::create(60.f, "");
+		m_vertical_input->setCommonFilter(CommonFilter::Float);
+		m_vertical_input->setString(fmt::to_string(m_vertical_squish));
+		m_vertical_input->setCallback([this](std::string const& str) {
+			m_vertical_squish = geode::utils::numFromString<float>(str).unwrapOr(m_vertical_squish);
+			this->update_labels();
+		});
+		m_advanced_squish->addChildAtPosition(m_vertical_input, Anchor::Center, ccp(60, -6));
+		m_advanced_squish->setVisible(m_developer_mode);
+		layer->addChildAtPosition(m_advanced_squish, Anchor::Center, ccp(0, 20));
+
+		layer->addChildAtPosition(
+			NodeFactory<CCLabelBMFont>::start("DEVELOPER MODE", "goldFont.fnt")
+				.setScale(0.58f),
+			Anchor::Center, ccp(-15, -34)
+		);
+		auto developer_toggle = CCMenuItemToggler::createWithStandardSprites(
+			this, menu_selector(CircleToolPopup::on_developer_mode), 0.65f
+		);
+		developer_toggle->toggle(m_developer_mode);
+		menu->addChildAtPosition(developer_toggle, Anchor::Center, ccp(-112, -34));
+		m_basic_squish->setVisible(!m_developer_mode);
 
 		float button_width = 68;
 		menu->addChildAtPosition(
@@ -81,7 +134,7 @@ public:
 				ButtonSprite::create("Apply", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::on_apply)
 			),
-			Anchor::Center, ccp(button_width / 2.f + 20, -85)
+			Anchor::Center, ccp(button_width / 2.f + 20, -112)
 		);
 
 		menu->addChildAtPosition(
@@ -89,12 +142,12 @@ public:
 				ButtonSprite::create("Cancel", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::onClose)
 			),
-			Anchor::Center, ccp(button_width / -2.f - 20, -85)
+			Anchor::Center, ccp(button_width / -2.f - 20, -112)
 		);
 
 		m_label = CCLabelBMFont::create("copies: 69\nobjects: 69420", "chatFont.fnt");
 		m_label->setAlignment(kCCTextAlignmentLeft);
-		layer->addChildAtPosition(m_label, Anchor::Center, ccp(-83, -41));
+		layer->addChildAtPosition(m_label, Anchor::Center, ccp(-83, -75));
 		this->update_labels();
 
 		auto info_btn = CCMenuItemSpriteExtra::create(
@@ -107,7 +160,7 @@ public:
 				.setScale(0.6f),
 			this, menu_selector(CircleToolPopup::on_info2)
 		);
-		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(60, 10) + ccp(42, -1.5));
+		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(102, 20));
 
 		return true;
 	}
@@ -117,6 +170,23 @@ public:
 		const auto amt = static_cast<size_t>(std::ceilf(m_angle / m_step) - 1.f);
 		const auto obj_count = amt * objs->count();
 		m_label->setString(fmt::format("Copies: {}\nObjects: {}", amt, obj_count).c_str());
+	}
+
+	void on_developer_mode(CCObject* sender) {
+		m_developer_mode = static_cast<CCMenuItemToggler*>(sender)->isToggled();
+
+		if (m_developer_mode) {
+			// Carry the existing vertical squish value into advanced mode.
+			m_vertical_squish = m_fat;
+			m_vertical_input->setString(fmt::to_string(m_vertical_squish));
+		} else {
+			// Keep the advanced vertical value available when returning to basic mode.
+			m_fat = m_vertical_squish;
+		}
+
+		m_basic_squish->setVisible(!m_developer_mode);
+		m_advanced_squish->setVisible(m_developer_mode);
+		this->update_labels();
 	}
 
 	void on_apply(CCObject*) {
@@ -145,26 +215,33 @@ public:
 		auto* editor = GameManager::sharedState()->getEditorLayer();
 		auto* editor_ui = editor->m_editorUI;
 		auto* objs = CCArray::create();
-		const auto calc = [](float angle) {
-			return -sinf(angle / 180.f * 3.141592f - 3.141592f / 2.f) * m_fat;
+
+		const float horizontal_squish = m_developer_mode ? m_horizontal_squish : 0.f;
+		const float vertical_squish = m_developer_mode ? m_vertical_squish : m_fat;
+		const auto calc = [horizontal_squish, vertical_squish](float angle) {
+			const float radians = angle / 180.f * 3.141592f;
+			return CCPoint{
+				sinf(radians) * horizontal_squish,
+				cosf(radians) * vertical_squish,
+			};
 		};
-		float off_acc = calc(0);
+		CCPoint off_acc = calc(0);
 		for (float i = 1; i * m_step < m_angle; ++i) {
 			editor_ui->onDuplicate(nullptr);
 			auto selected = editor_ui->getSelectedObjects();
 			editor_ui->rotateObjects(selected, m_step, {0.f, 0.f});
 
 			const float angle = i * m_step;
+			const auto offset = calc(angle);
+			const CCPoint delta = {offset.x - off_acc.x, offset.y - off_acc.y};
 
-			if (m_fat != 0.f) {
-				float off_y = calc(angle) - off_acc;
-
+			if (delta.x != 0.f || delta.y != 0.f) {
 				for (auto obj : CCArrayExt<GameObject*>(selected)) {
-					editor_ui->moveObject(obj, {0, off_y});
+					editor_ui->moveObject(obj, delta);
 				}
-
-				off_acc = calc(angle);
 			}
+
+			off_acc = offset;
 
 			// remove undo object for pasting the objs
 			editor->m_undoObjects->removeLastObject();
@@ -186,9 +263,9 @@ public:
 
 	void on_info2(CCObject*) {
 		FLAlertLayer::create(nullptr, "info",
-			"This will move the selection up and down with the rotation angle, as to create an <cy>ellipse</c>.\n"
-			"This number will control how much it goes up and down, thus controlling how <cg>\"squished\"</c> the circle is.\n"
-			"This works best with a single object as the center, marked as <co>group parent</c>.",
+			"Basic mode moves the selection vertically to create an <cy>ellipse</c>.\n"
+			"Enable <cy>DEVELOPER MODE</c> to control the horizontal and vertical squish independently.\n"
+			"The advanced values are applied on both axes relative to the rotation angle.",
 			"ok", nullptr, 400.f
 		)->show();
 	}
@@ -197,6 +274,9 @@ public:
 float CircleToolPopup::m_angle = 180.0f;
 float CircleToolPopup::m_step = 5.f;
 float CircleToolPopup::m_fat = 0.f;
+float CircleToolPopup::m_horizontal_squish = 0.f;
+float CircleToolPopup::m_vertical_squish = 0.f;
+bool CircleToolPopup::m_developer_mode = false;
 
 
 class $modify(MyEditorUI, EditorUI) {
