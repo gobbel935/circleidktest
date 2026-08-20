@@ -1,4 +1,7 @@
 ## Unreleased
+- Redesign the popup with a clean mode sidebar and one focused parameter panel.
+- Add active Circle/Spiral and Basic/Advanced selectors with context-aware info help.
+- Harden numeric input handling and copy-count calculations against invalid or zero values.
 - Add Spiral Mode with a Spiral Turns control and an in-popup info guide for beginner-friendly setup.
 - Fix the `Advanced Squash` toggle so advanced controls appear when enabled and the basic `Squish` control returns when disabled.
 - Add an `Advanced Squash` toggle that reveals independent `Squash Horizontal` and `Squash Vertical` controls.

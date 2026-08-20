@@ -1,6 +1,7 @@
 #include <Geode/modify/EditorUI.hpp>
-#include <Geode/binding/CCMenuItemToggler.hpp>
 #include <nodes.hpp>
+#include <algorithm>
+#include <cmath>
 
 using namespace geode;
 using namespace cocos2d;
@@ -17,15 +18,17 @@ public:
 	static bool m_advanced_squash_enabled;
 	static bool m_spiral_mode_enabled;
 
-	CCLabelBMFont* m_label = nullptr;
-	CCNode* m_basic_squish = nullptr;
-	CCNode* m_advanced_squish = nullptr;
-	CCMenuItemToggler* m_advanced_toggle = nullptr;
-	CCNode* m_spiral_controls = nullptr;
-	CCMenuItemToggler* m_spiral_toggle = nullptr;
-	TextInput* m_spiral_turns_input = nullptr;
-	TextInput* m_horizontal_input = nullptr;
-	TextInput* m_vertical_input = nullptr;
+		CCLabelBMFont* m_label = nullptr;
+		CCNode* m_basic_squish = nullptr;
+		CCNode* m_advanced_squish = nullptr;
+		CCNode* m_spiral_controls = nullptr;
+		CCMenuItemSpriteExtra* m_circle_mode_button = nullptr;
+		CCMenuItemSpriteExtra* m_spiral_mode_button = nullptr;
+		CCMenuItemSpriteExtra* m_basic_shape_button = nullptr;
+		CCMenuItemSpriteExtra* m_advanced_shape_button = nullptr;
+		TextInput* m_spiral_turns_input = nullptr;
+		TextInput* m_horizontal_input = nullptr;
+		TextInput* m_vertical_input = nullptr;
 
 	static CircleToolPopup* create() {
 		auto* node = new CircleToolPopup();
@@ -39,223 +42,249 @@ public:
 	}
 
 	bool init() override {
-		if (!Popup::init(300, 320)) return false;
+		if (!Popup::init(390, 300)) return false;
 
 		this->setTitle("Circle Tool");
 
 		auto* layer = m_mainLayer;
 		auto* menu = m_buttonMenu;
 
-		layer->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Arc", "goldFont.fnt")
-				.setScale(0.75f),
-			Anchor::Center, ccp(-60, 84)
-		);
-		auto angle_input = geode::TextInput::create(60.f, "");
+		// Keep navigation separate from the active parameter content.
+		auto* sidebar = CCNode::create();
+		sidebar->setContentSize({92.f, 220.f});
+		auto* sidebar_bg = CCLayerColor::create(ccc4(22, 22, 32, 160), 92.f, 220.f);
+		sidebar_bg->setAnchorPoint({0.5f, 0.5f});
+		sidebar->addChildAtPosition(sidebar_bg, Anchor::Center);
+		layer->addChildAtPosition(sidebar, Anchor::Center, ccp(-140.f, 4.f));
+
+		auto* content = CCNode::create();
+		content->setContentSize({274.f, 220.f});
+		auto* content_bg = CCLayerColor::create(ccc4(15, 15, 24, 120), 274.f, 220.f);
+		content_bg->setAnchorPoint({0.5f, 0.5f});
+		content->addChildAtPosition(content_bg, Anchor::Center);
+		layer->addChildAtPosition(content, Anchor::Center, ccp(45.f, 4.f));
+
+		auto add_label = [](CCNode* parent, const char* text, float scale, CCPoint offset) {
+			auto* label = NodeFactory<CCLabelBMFont>::start(text, "goldFont.fnt")
+				.setScale(scale)
+				.end();
+			parent->addChildAtPosition(label, Anchor::Center, offset);
+			return label;
+		};
+
+		add_label(sidebar, "MODE", 0.44f, ccp(0.f, 94.f));
+		add_label(sidebar, "SHAPE", 0.44f, ccp(0.f, -28.f));
+		add_label(content, "Parameters", 0.62f, ccp(-8.f, 96.f));
+
+		add_label(content, "Arc", 0.58f, ccp(-68.f, 66.f));
+		auto angle_input = geode::TextInput::create(58.f, "");
 		angle_input->setCommonFilter(CommonFilter::Float);
 		angle_input->setString(fmt::to_string(m_angle));
 		angle_input->setCallback([this](std::string const& str) {
-			m_angle = geode::utils::numFromString<float>(str).unwrapOr(m_angle);
+			auto value = this->parse_finite(str, m_angle);
+			m_angle = std::max(0.1f, std::fabs(value));
 			this->update_labels();
 		});
-		layer->addChildAtPosition(angle_input, Anchor::Center, ccp(-60, 58));
+		content->addChildAtPosition(angle_input, Anchor::Center, ccp(-68.f, 40.f));
 
-		layer->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Step", "goldFont.fnt")
-				.setScale(0.75f),
-			Anchor::Center, ccp(60, 84)
-		);
-		auto step_input = geode::TextInput::create(60.f, "");
+		add_label(content, "Step", 0.58f, ccp(68.f, 66.f));
+		auto step_input = geode::TextInput::create(58.f, "");
 		step_input->setCommonFilter(CommonFilter::Float);
 		step_input->setString(fmt::to_string(m_step));
 		step_input->setCallback([this](std::string const& str) {
-			m_step = geode::utils::numFromString<float>(str).unwrapOr(m_step);
-			if (m_step == 0.f) m_step = 1.f;
+			auto value = this->parse_finite(str, m_step);
+			m_step = std::max(0.1f, std::fabs(value));
 			this->update_labels();
 		});
-		layer->addChildAtPosition(step_input, Anchor::Center, ccp(60, 58));
+		content->addChildAtPosition(step_input, Anchor::Center, ccp(68.f, 40.f));
 
 		m_basic_squish = CCNode::create();
-		m_basic_squish->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Squish", "goldFont.fnt")
-				.setScale(0.75f),
-			Anchor::Center, ccp(0, 20)
-		);
-		auto fat_input = geode::TextInput::create(60.f, "");
+		m_basic_squish->setContentSize({220.f, 48.f});
+		add_label(m_basic_squish, "Squish", 0.58f, ccp(-48.f, 0.f));
+		auto fat_input = geode::TextInput::create(58.f, "");
 		fat_input->setCommonFilter(CommonFilter::Float);
 		fat_input->setString(fmt::to_string(m_fat));
 		fat_input->setCallback([this](std::string const& str) {
-			m_fat = geode::utils::numFromString<float>(str).unwrapOr(m_fat);
+			m_fat = this->parse_finite(str, m_fat);
 			this->update_labels();
 		});
-		m_basic_squish->addChildAtPosition(fat_input, Anchor::Center, ccp(0, -6));
-		layer->addChildAtPosition(m_basic_squish, Anchor::Center, ccp(60, 20));
+		m_basic_squish->addChildAtPosition(fat_input, Anchor::Center, ccp(50.f, 0.f));
+		content->addChildAtPosition(m_basic_squish, Anchor::Center, ccp(0.f, 4.f));
 
 		m_advanced_squish = CCNode::create();
-		m_advanced_squish->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Squash Horizontal", "goldFont.fnt")
-					.setScale(0.48f),
-			Anchor::Center, ccp(-60, 20)
-		);
-		m_horizontal_input = geode::TextInput::create(60.f, "");
+		m_advanced_squish->setContentSize({250.f, 48.f});
+		add_label(m_advanced_squish, "Squash Horizontal", 0.43f, ccp(-61.f, 0.f));
+		m_horizontal_input = geode::TextInput::create(58.f, "");
 		m_horizontal_input->setCommonFilter(CommonFilter::Float);
 		m_horizontal_input->setString(fmt::to_string(m_horizontal_squish));
 		m_horizontal_input->setCallback([this](std::string const& str) {
-			m_horizontal_squish = geode::utils::numFromString<float>(str).unwrapOr(m_horizontal_squish);
+			m_horizontal_squish = this->parse_finite(str, m_horizontal_squish);
 			this->update_labels();
 		});
-		m_advanced_squish->addChildAtPosition(m_horizontal_input, Anchor::Center, ccp(-60, -6));
-
-		m_advanced_squish->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Squash Vertical", "goldFont.fnt")
-					.setScale(0.48f),
-			Anchor::Center, ccp(60, 20)
-		);
-		m_vertical_input = geode::TextInput::create(60.f, "");
+		m_advanced_squish->addChildAtPosition(m_horizontal_input, Anchor::Center, ccp(-4.f, -19.f));
+		add_label(m_advanced_squish, "Squash Vertical", 0.43f, ccp(61.f, 0.f));
+		m_vertical_input = geode::TextInput::create(58.f, "");
 		m_vertical_input->setCommonFilter(CommonFilter::Float);
 		m_vertical_input->setString(fmt::to_string(m_vertical_squish));
 		m_vertical_input->setCallback([this](std::string const& str) {
-			m_vertical_squish = geode::utils::numFromString<float>(str).unwrapOr(m_vertical_squish);
+			m_vertical_squish = this->parse_finite(str, m_vertical_squish);
 			this->update_labels();
 		});
-		m_advanced_squish->addChildAtPosition(m_vertical_input, Anchor::Center, ccp(60, -6));
-		layer->addChildAtPosition(m_advanced_squish, Anchor::Center, ccp(0, 20));
-
-		layer->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Advanced Squash", "goldFont.fnt")
-					.setScale(0.52f),
-			Anchor::Center, ccp(-15, -34)
-		);
-		m_advanced_toggle = CCMenuItemToggler::createWithStandardSprites(
-			this, menu_selector(CircleToolPopup::on_advanced_squash), 0.65f
-		);
-		m_advanced_toggle->toggle(m_advanced_squash_enabled);
-		menu->addChildAtPosition(m_advanced_toggle, Anchor::Center, ccp(-112, -34));
-		this->set_squash_controls_visible(m_advanced_squash_enabled);
+		m_advanced_squish->addChildAtPosition(m_vertical_input, Anchor::Center, ccp(58.f, -19.f));
+		content->addChildAtPosition(m_advanced_squish, Anchor::Center, ccp(0.f, 4.f));
 
 		m_spiral_controls = CCNode::create();
-		m_spiral_controls->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Spiral Turns", "goldFont.fnt")
-				.setScale(0.65f),
-			Anchor::Center, ccp(0, 20)
-		);
-		m_spiral_turns_input = geode::TextInput::create(60.f, "");
+		m_spiral_controls->setContentSize({220.f, 48.f});
+		add_label(m_spiral_controls, "Spiral Turns", 0.52f, ccp(-48.f, 0.f));
+		m_spiral_turns_input = geode::TextInput::create(58.f, "");
 		m_spiral_turns_input->setCommonFilter(CommonFilter::Float);
 		m_spiral_turns_input->setString(fmt::to_string(m_spiral_turns));
 		m_spiral_turns_input->setCallback([this](std::string const& str) {
-			m_spiral_turns = geode::utils::numFromString<float>(str).unwrapOr(m_spiral_turns);
-			if (m_spiral_turns == 0.f) m_spiral_turns = 1.f;
+			auto value = this->parse_finite(str, m_spiral_turns);
+			m_spiral_turns = std::max(0.05f, std::fabs(value));
 			this->update_labels();
 		});
-		m_spiral_controls->addChildAtPosition(m_spiral_turns_input, Anchor::Center, ccp(0, -6));
-		layer->addChildAtPosition(m_spiral_controls, Anchor::Center, ccp(0, -78));
+		m_spiral_controls->addChildAtPosition(m_spiral_turns_input, Anchor::Center, ccp(50.f, 0.f));
+		content->addChildAtPosition(m_spiral_controls, Anchor::Center, ccp(0.f, -42.f));
 
-		layer->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Spiral Mode", "goldFont.fnt")
-				.setScale(0.58f),
-			Anchor::Center, ccp(-15, -58)
-		);
-		m_spiral_toggle = CCMenuItemToggler::createWithStandardSprites(
-			this, menu_selector(CircleToolPopup::on_spiral_mode), 0.65f
-		);
-		m_spiral_toggle->toggle(m_spiral_mode_enabled);
-		menu->addChildAtPosition(m_spiral_toggle, Anchor::Center, ccp(-112, -58));
-		this->set_spiral_controls_visible(m_spiral_mode_enabled);
+		auto create_side_button = [this](const char* text, SEL_MenuHandler callback) {
+			return CCMenuItemSpriteExtra::create(
+				ButtonSprite::create(text, 68.f, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.55f),
+				this, callback
+			);
+		};
 
-		float button_width = 68;
+		m_circle_mode_button = create_side_button("Circle", menu_selector(CircleToolPopup::on_circle_mode));
+		m_spiral_mode_button = create_side_button("Spiral", menu_selector(CircleToolPopup::on_spiral_mode));
+		m_basic_shape_button = create_side_button("Basic", menu_selector(CircleToolPopup::on_basic_shape));
+		m_advanced_shape_button = create_side_button("Advanced", menu_selector(CircleToolPopup::on_advanced_shape));
+		menu->addChildAtPosition(m_circle_mode_button, Anchor::Center, ccp(-140.f, 58.f));
+		menu->addChildAtPosition(m_spiral_mode_button, Anchor::Center, ccp(-140.f, 20.f));
+		menu->addChildAtPosition(m_basic_shape_button, Anchor::Center, ccp(-140.f, -58.f));
+		menu->addChildAtPosition(m_advanced_shape_button, Anchor::Center, ccp(-140.f, -96.f));
+
+		this->set_mode(m_spiral_mode_enabled);
+		this->set_shape(m_advanced_squash_enabled, false);
+
+		auto info_btn = CCMenuItemSpriteExtra::create(
+			NodeFactory<CCSprite>::start(CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"))
+				.setScale(0.65f),
+			this, menu_selector(CircleToolPopup::on_context_info)
+		);
+		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(155.f, 100.f));
+
+		m_label = CCLabelBMFont::create("Copies: 0\nObjects: 0", "chatFont.fnt");
+		m_label->setAlignment(kCCTextAlignmentLeft);
+		m_label->setScale(0.55f);
+		content->addChildAtPosition(m_label, Anchor::Center, ccp(-82.f, -91.f));
+		this->update_labels();
+
+		const float button_width = 68.f;
 		menu->addChildAtPosition(
 			CCMenuItemSpriteExtra::create(
 				ButtonSprite::create("Apply", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::on_apply)
 			),
-				Anchor::Center, ccp(button_width / 2.f + 20, -130)
+			Anchor::Center, ccp(button_width / 2.f + 82.f, -130.f)
 		);
-
 		menu->addChildAtPosition(
 			CCMenuItemSpriteExtra::create(
 				ButtonSprite::create("Cancel", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::onClose)
 			),
-				Anchor::Center, ccp(button_width / -2.f - 20, -130)
+			Anchor::Center, ccp(button_width / -2.f - 82.f, -130.f)
 		);
-
-		m_label = CCLabelBMFont::create("copies: 69\nobjects: 69420", "chatFont.fnt");
-		m_label->setAlignment(kCCTextAlignmentLeft);
-		layer->addChildAtPosition(m_label, Anchor::Center, ccp(-83, -101));
-		this->update_labels();
-
-		auto info_btn = CCMenuItemSpriteExtra::create(
-			CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"), this, menu_selector(CircleToolPopup::on_info)
-		);
-		menu->addChildAtPosition(info_btn, Anchor::TopRight, ccp(-19, -19));
-
-		info_btn = CCMenuItemSpriteExtra::create(
-			NodeFactory<CCSprite>::start(CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"))
-				.setScale(0.6f),
-			this, menu_selector(CircleToolPopup::on_info2)
-		);
-		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(102, 20));
-
-		info_btn = CCMenuItemSpriteExtra::create(
-			NodeFactory<CCSprite>::start(CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"))
-				.setScale(0.6f),
-			this, menu_selector(CircleToolPopup::on_spiral_info)
-		);
-		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(102, -58));
 
 		return true;
 	}
 
+	float parse_finite(std::string const& text, float fallback) const {
+		const auto value = geode::utils::numFromString<float>(text).unwrapOr(fallback);
+		return std::isfinite(value) ? value : fallback;
+	}
+
+	size_t copy_count() const {
+		const auto arc = std::fabs(m_angle);
+		const auto step = std::max(0.1f, m_step);
+		return static_cast<size_t>(std::max(0.f, std::ceil(arc / step) - 1.f));
+	}
+
 	void update_labels() {
-		auto objs = GameManager::sharedState()->getEditorLayer()->m_editorUI->getSelectedObjects();
-		const auto amt = static_cast<size_t>(std::ceilf(m_angle / m_step) - 1.f);
-		const auto obj_count = amt * objs->count();
-		m_label->setString(fmt::format("Copies: {}\nObjects: {}", amt, obj_count).c_str());
+		if (!m_label) return;
+		auto* editor = GameManager::sharedState()->getEditorLayer();
+		auto* objs = editor ? editor->m_editorUI->getSelectedObjects() : nullptr;
+		const auto amount = this->copy_count();
+		const auto object_count = objs ? amount * objs->count() : 0;
+		m_label->setString(fmt::format("Copies: {}\nObjects: {}", amount, object_count).c_str());
 	}
 
-	void set_squash_controls_visible(bool advanced) {
-		m_advanced_squash_enabled = advanced;
-		m_basic_squish->setVisible(!advanced);
-		m_advanced_squish->setVisible(advanced);
+	void set_mode(bool spiral) {
+		m_spiral_mode_enabled = spiral;
+		m_spiral_controls->setVisible(spiral);
+		m_circle_mode_button->setOpacity(spiral ? 150 : 255);
+		m_spiral_mode_button->setOpacity(spiral ? 255 : 150);
 	}
 
-	void set_spiral_controls_visible(bool enabled) {
-		m_spiral_mode_enabled = enabled;
-		m_spiral_controls->setVisible(enabled);
-	}
-
-	void on_spiral_mode(CCObject*) {
-		// CCMenuItemToggler invokes the callback before changing its state.
-		const bool enabled = !m_spiral_toggle->isToggled();
-		m_spiral_toggle->toggle(enabled);
-		this->set_spiral_controls_visible(enabled);
-		this->update_labels();
-	}
-
-	void on_advanced_squash(CCObject*) {
-		// CCMenuItemToggler invokes the callback before changing its state.
-		const bool advanced = !m_advanced_toggle->isToggled();
-		m_advanced_toggle->toggle(advanced);
-
-		if (advanced) {
-			// Carry the existing vertical squish value into advanced mode.
+	void set_shape(bool advanced, bool preserve_value) {
+		if (preserve_value && advanced && !m_advanced_squash_enabled) {
 			m_vertical_squish = m_fat;
 			m_vertical_input->setString(fmt::to_string(m_vertical_squish));
-		} else {
-			// Keep the advanced vertical value available when returning to basic mode.
+		} else if (preserve_value && !advanced && m_advanced_squash_enabled) {
 			m_fat = m_vertical_squish;
 		}
 
-		this->set_squash_controls_visible(advanced);
+		m_advanced_squash_enabled = advanced;
+		m_basic_squish->setVisible(!advanced);
+		m_advanced_squish->setVisible(advanced);
+		m_basic_shape_button->setOpacity(advanced ? 150 : 255);
+		m_advanced_shape_button->setOpacity(advanced ? 255 : 150);
+	}
+
+	void on_circle_mode(CCObject*) {
+		this->set_mode(false);
 		this->update_labels();
+	}
+
+	void on_spiral_mode(CCObject*) {
+		this->set_mode(true);
+		this->update_labels();
+	}
+
+	void on_basic_shape(CCObject*) {
+		this->set_shape(false, true);
+		this->update_labels();
+	}
+
+	void on_advanced_shape(CCObject*) {
+		this->set_shape(true, true);
+		this->update_labels();
+	}
+
+	void on_context_info(CCObject*) {
+		if (m_spiral_mode_enabled) {
+			FLAlertLayer::create(nullptr, "Spiral Mode",
+				"Spiral Mode moves each duplicate farther from the center while it rotates.\n"
+				"<cy>Spiral Turns</c> controls the number of full loops across the Arc.\n"
+				"Try <cy>Arc 360</c>, <cy>Step 5</c>, and <cy>Spiral Turns 1</c> first.\n"
+				"Use Basic for one Squish value, or Advanced for separate horizontal and vertical control.",
+				"OK", nullptr, 420.f
+			)->show();
+		} else {
+			FLAlertLayer::create(nullptr, "Circle Mode",
+				"Circle Mode repeatedly duplicates and rotates the selection across the Arc.\n"
+				"<cy>Step</c> controls the spacing between copies.\n"
+				"Use Basic for one Squish value, or Advanced for separate horizontal and vertical control.",
+				"OK", nullptr, 400.f
+			)->show();
+		}
 	}
 
 	void on_apply(CCObject*) {
 		auto* editor = GameManager::sharedState()->getEditorLayer()->m_editorUI;
 		auto objs = editor->getSelectedObjects();
-		const auto amt = static_cast<size_t>(std::ceilf(m_angle / m_step) - 1.f);
+		const auto amount = this->copy_count();
 		if (objs && objs->count()) {
-			const auto obj_count = objs->count() * amt;
+			const auto obj_count = objs->count() * amount;
 			if (obj_count > 5000) {
 				createQuickPopup("Warning",
 					fmt::format("This will create <cy>{}</c> objects, are you sure?", obj_count),
@@ -278,10 +307,11 @@ public:
 		auto* objs = CCArray::create();
 
 		const bool spiral_enabled = m_spiral_mode_enabled;
+		const float step = std::max(0.1f, m_step);
 		const float horizontal_squish = m_advanced_squash_enabled ? m_horizontal_squish : (spiral_enabled ? m_fat : 0.f);
 		const float vertical_squish = m_advanced_squash_enabled ? m_vertical_squish : m_fat;
-		const float spiral_turns = spiral_enabled ? m_spiral_turns : 1.f;
-		const float arc = m_angle == 0.f ? 1.f : m_angle;
+		const float spiral_turns = spiral_enabled ? std::max(0.05f, m_spiral_turns) : 1.f;
+		const float arc = std::max(0.1f, std::fabs(m_angle));
 		const auto calc = [horizontal_squish, vertical_squish, spiral_turns, spiral_enabled, arc](float angle) {
 			const float radians = angle / 180.f * 3.141592f;
 			const float progress = angle / arc;
@@ -293,12 +323,12 @@ public:
 			};
 		};
 		CCPoint off_acc = calc(0);
-		for (float i = 1; i * m_step < m_angle; ++i) {
+		for (float i = 1; i * step < arc; ++i) {
 			editor_ui->onDuplicate(nullptr);
 			auto selected = editor_ui->getSelectedObjects();
-			editor_ui->rotateObjects(selected, m_step, {0.f, 0.f});
+			editor_ui->rotateObjects(selected, step, {0.f, 0.f});
 
-			const float angle = i * m_step;
+			const float angle = i * step;
 			const auto offset = calc(angle);
 			const CCPoint delta = {offset.x - off_acc.x, offset.y - off_acc.y};
 
@@ -318,34 +348,6 @@ public:
 		// second argument is ignoreSelectFilter
 		editor_ui->selectObjects(objs, true);
 		this->keyBackClicked();
-	}
-
-	void on_info(CCObject*) {
-		FLAlertLayer::create(nullptr, "info",
-			"This will repeatedly copy-paste and rotate the selected objects,\n"
-			"rotating by <cy>Step</c> degrees each time, until it gets to <cy>Arc</c> degrees.",
-			"ok", nullptr, 300.f
-		)->show();
-	}
-
-	void on_info2(CCObject*) {
-		FLAlertLayer::create(nullptr, "info",
-			"Basic mode moves the selection vertically to create an <cy>ellipse</c>.\n"
-			"Enable <cy>Advanced Squash</c> to control Squash Horizontal and Squash Vertical independently.\n"
-			"The advanced values are applied on both axes relative to the rotation angle.",
-			"ok", nullptr, 400.f
-		)->show();
-	}
-
-	void on_spiral_info(CCObject*) {
-		FLAlertLayer::create(nullptr, "Spiral Mode",
-			"Spiral Mode sends each duplicate farther from the center while it rotates.\n"
-			"<cy>Spiral Turns</c> controls how many full loops the pattern makes across the Arc.\n"
-			"Start with <cy>Arc 360</c>, <cy>Step 5</c>, <cy>Squish 100</c>, and <cy>Spiral Turns 1</c>.\n"
-			"With Advanced Squash, try <cy>Horizontal 100</c> and <cy>Vertical 100</c>.\n"
-			"Use the squash values to shape the spiral horizontally and vertically.",
-			"ok", nullptr, 460.f
-		)->show();
 	}
 };
 
