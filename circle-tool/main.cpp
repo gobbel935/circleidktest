@@ -13,7 +13,7 @@ public:
 	static float m_fat;
 	static float m_horizontal_squish;
 	static float m_vertical_squish;
-	static bool m_developer_mode;
+	static bool m_advanced_squash_enabled;
 
 	CCLabelBMFont* m_label = nullptr;
 	CCNode* m_basic_squish = nullptr;
@@ -87,8 +87,8 @@ public:
 
 		m_advanced_squish = CCNode::create();
 		m_advanced_squish->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Horizontal", "goldFont.fnt")
-				.setScale(0.62f),
+			NodeFactory<CCLabelBMFont>::start("Squash Horizontal", "goldFont.fnt")
+					.setScale(0.48f),
 			Anchor::Center, ccp(-60, 20)
 		);
 		m_horizontal_input = geode::TextInput::create(60.f, "");
@@ -101,8 +101,8 @@ public:
 		m_advanced_squish->addChildAtPosition(m_horizontal_input, Anchor::Center, ccp(-60, -6));
 
 		m_advanced_squish->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("Vertical", "goldFont.fnt")
-				.setScale(0.62f),
+			NodeFactory<CCLabelBMFont>::start("Squash Vertical", "goldFont.fnt")
+					.setScale(0.48f),
 			Anchor::Center, ccp(60, 20)
 		);
 		m_vertical_input = geode::TextInput::create(60.f, "");
@@ -113,20 +113,20 @@ public:
 			this->update_labels();
 		});
 		m_advanced_squish->addChildAtPosition(m_vertical_input, Anchor::Center, ccp(60, -6));
-		m_advanced_squish->setVisible(m_developer_mode);
+		m_advanced_squish->setVisible(m_advanced_squash_enabled);
 		layer->addChildAtPosition(m_advanced_squish, Anchor::Center, ccp(0, 20));
 
 		layer->addChildAtPosition(
-			NodeFactory<CCLabelBMFont>::start("DEVELOPER MODE", "goldFont.fnt")
-				.setScale(0.58f),
+			NodeFactory<CCLabelBMFont>::start("Advanced Squash", "goldFont.fnt")
+					.setScale(0.52f),
 			Anchor::Center, ccp(-15, -34)
 		);
 		auto developer_toggle = CCMenuItemToggler::createWithStandardSprites(
-			this, menu_selector(CircleToolPopup::on_developer_mode), 0.65f
+			this, menu_selector(CircleToolPopup::on_advanced_squash), 0.65f
 		);
-		developer_toggle->toggle(m_developer_mode);
+		developer_toggle->toggle(m_advanced_squash_enabled);
 		menu->addChildAtPosition(developer_toggle, Anchor::Center, ccp(-112, -34));
-		m_basic_squish->setVisible(!m_developer_mode);
+		m_basic_squish->setVisible(!m_advanced_squash_enabled);
 
 		float button_width = 68;
 		menu->addChildAtPosition(
@@ -172,10 +172,10 @@ public:
 		m_label->setString(fmt::format("Copies: {}\nObjects: {}", amt, obj_count).c_str());
 	}
 
-	void on_developer_mode(CCObject* sender) {
-		m_developer_mode = static_cast<CCMenuItemToggler*>(sender)->isToggled();
+	void on_advanced_squash(CCObject* sender) {
+		m_advanced_squash_enabled = static_cast<CCMenuItemToggler*>(sender)->isToggled();
 
-		if (m_developer_mode) {
+		if (m_advanced_squash_enabled) {
 			// Carry the existing vertical squish value into advanced mode.
 			m_vertical_squish = m_fat;
 			m_vertical_input->setString(fmt::to_string(m_vertical_squish));
@@ -184,8 +184,8 @@ public:
 			m_fat = m_vertical_squish;
 		}
 
-		m_basic_squish->setVisible(!m_developer_mode);
-		m_advanced_squish->setVisible(m_developer_mode);
+		m_basic_squish->setVisible(!m_advanced_squash_enabled);
+		m_advanced_squish->setVisible(m_advanced_squash_enabled);
 		this->update_labels();
 	}
 
@@ -216,8 +216,8 @@ public:
 		auto* editor_ui = editor->m_editorUI;
 		auto* objs = CCArray::create();
 
-		const float horizontal_squish = m_developer_mode ? m_horizontal_squish : 0.f;
-		const float vertical_squish = m_developer_mode ? m_vertical_squish : m_fat;
+		const float horizontal_squish = m_advanced_squash_enabled ? m_horizontal_squish : 0.f;
+		const float vertical_squish = m_advanced_squash_enabled ? m_vertical_squish : m_fat;
 		const auto calc = [horizontal_squish, vertical_squish](float angle) {
 			const float radians = angle / 180.f * 3.141592f;
 			return CCPoint{
@@ -264,7 +264,7 @@ public:
 	void on_info2(CCObject*) {
 		FLAlertLayer::create(nullptr, "info",
 			"Basic mode moves the selection vertically to create an <cy>ellipse</c>.\n"
-			"Enable <cy>DEVELOPER MODE</c> to control the horizontal and vertical squish independently.\n"
+			"Enable <cy>Advanced Squash</c> to control Squash Horizontal and Squash Vertical independently.\n"
 			"The advanced values are applied on both axes relative to the rotation angle.",
 			"ok", nullptr, 400.f
 		)->show();
@@ -276,7 +276,7 @@ float CircleToolPopup::m_step = 5.f;
 float CircleToolPopup::m_fat = 0.f;
 float CircleToolPopup::m_horizontal_squish = 0.f;
 float CircleToolPopup::m_vertical_squish = 0.f;
-bool CircleToolPopup::m_developer_mode = false;
+bool CircleToolPopup::m_advanced_squash_enabled = false;
 
 
 class $modify(MyEditorUI, EditorUI) {

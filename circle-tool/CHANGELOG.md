@@ -1,5 +1,5 @@
 ## Unreleased
-- Add a `DEVELOPER MODE` toggle to expose independent horizontal and vertical squish controls.
+- Add an `Advanced Squash` toggle that reveals independent `Squash Horizontal` and `Squash Vertical` controls.
 
 ## 1.2.3
 - Remake the popup using Geode's classes, preventing a touch handler leak
