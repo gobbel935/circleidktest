@@ -13,12 +13,17 @@ public:
 	static float m_fat;
 	static float m_horizontal_squish;
 	static float m_vertical_squish;
+	static float m_spiral_turns;
 	static bool m_advanced_squash_enabled;
+	static bool m_spiral_mode_enabled;
 
 	CCLabelBMFont* m_label = nullptr;
 	CCNode* m_basic_squish = nullptr;
 	CCNode* m_advanced_squish = nullptr;
 	CCMenuItemToggler* m_advanced_toggle = nullptr;
+	CCNode* m_spiral_controls = nullptr;
+	CCMenuItemToggler* m_spiral_toggle = nullptr;
+	TextInput* m_spiral_turns_input = nullptr;
 	TextInput* m_horizontal_input = nullptr;
 	TextInput* m_vertical_input = nullptr;
 
@@ -34,7 +39,7 @@ public:
 	}
 
 	bool init() override {
-		if (!Popup::init(300, 260)) return false;
+		if (!Popup::init(300, 320)) return false;
 
 		this->setTitle("Circle Tool");
 
@@ -128,13 +133,42 @@ public:
 		menu->addChildAtPosition(m_advanced_toggle, Anchor::Center, ccp(-112, -34));
 		this->set_squash_controls_visible(m_advanced_squash_enabled);
 
+		m_spiral_controls = CCNode::create();
+		m_spiral_controls->addChildAtPosition(
+			NodeFactory<CCLabelBMFont>::start("Spiral Turns", "goldFont.fnt")
+				.setScale(0.65f),
+			Anchor::Center, ccp(0, 20)
+		);
+		m_spiral_turns_input = geode::TextInput::create(60.f, "");
+		m_spiral_turns_input->setCommonFilter(CommonFilter::Float);
+		m_spiral_turns_input->setString(fmt::to_string(m_spiral_turns));
+		m_spiral_turns_input->setCallback([this](std::string const& str) {
+			m_spiral_turns = geode::utils::numFromString<float>(str).unwrapOr(m_spiral_turns);
+			if (m_spiral_turns == 0.f) m_spiral_turns = 1.f;
+			this->update_labels();
+		});
+		m_spiral_controls->addChildAtPosition(m_spiral_turns_input, Anchor::Center, ccp(0, -6));
+		layer->addChildAtPosition(m_spiral_controls, Anchor::Center, ccp(0, -78));
+
+		layer->addChildAtPosition(
+			NodeFactory<CCLabelBMFont>::start("Spiral Mode", "goldFont.fnt")
+				.setScale(0.58f),
+			Anchor::Center, ccp(-15, -58)
+		);
+		m_spiral_toggle = CCMenuItemToggler::createWithStandardSprites(
+			this, menu_selector(CircleToolPopup::on_spiral_mode), 0.65f
+		);
+		m_spiral_toggle->toggle(m_spiral_mode_enabled);
+		menu->addChildAtPosition(m_spiral_toggle, Anchor::Center, ccp(-112, -58));
+		this->set_spiral_controls_visible(m_spiral_mode_enabled);
+
 		float button_width = 68;
 		menu->addChildAtPosition(
 			CCMenuItemSpriteExtra::create(
 				ButtonSprite::create("Apply", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::on_apply)
 			),
-			Anchor::Center, ccp(button_width / 2.f + 20, -112)
+				Anchor::Center, ccp(button_width / 2.f + 20, -130)
 		);
 
 		menu->addChildAtPosition(
@@ -142,12 +176,12 @@ public:
 				ButtonSprite::create("Cancel", button_width, true, "goldFont.fnt", "GJ_button_01.png", 0, 0.75f),
 				this, menu_selector(CircleToolPopup::onClose)
 			),
-			Anchor::Center, ccp(button_width / -2.f - 20, -112)
+				Anchor::Center, ccp(button_width / -2.f - 20, -130)
 		);
 
 		m_label = CCLabelBMFont::create("copies: 69\nobjects: 69420", "chatFont.fnt");
 		m_label->setAlignment(kCCTextAlignmentLeft);
-		layer->addChildAtPosition(m_label, Anchor::Center, ccp(-83, -75));
+		layer->addChildAtPosition(m_label, Anchor::Center, ccp(-83, -101));
 		this->update_labels();
 
 		auto info_btn = CCMenuItemSpriteExtra::create(
@@ -161,6 +195,13 @@ public:
 			this, menu_selector(CircleToolPopup::on_info2)
 		);
 		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(102, 20));
+
+		info_btn = CCMenuItemSpriteExtra::create(
+			NodeFactory<CCSprite>::start(CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png"))
+				.setScale(0.6f),
+			this, menu_selector(CircleToolPopup::on_spiral_info)
+		);
+		menu->addChildAtPosition(info_btn, Anchor::Center, ccp(102, -58));
 
 		return true;
 	}
@@ -176,6 +217,19 @@ public:
 		m_advanced_squash_enabled = advanced;
 		m_basic_squish->setVisible(!advanced);
 		m_advanced_squish->setVisible(advanced);
+	}
+
+	void set_spiral_controls_visible(bool enabled) {
+		m_spiral_mode_enabled = enabled;
+		m_spiral_controls->setVisible(enabled);
+	}
+
+	void on_spiral_mode(CCObject*) {
+		// CCMenuItemToggler invokes the callback before changing its state.
+		const bool enabled = !m_spiral_toggle->isToggled();
+		m_spiral_toggle->toggle(enabled);
+		this->set_spiral_controls_visible(enabled);
+		this->update_labels();
 	}
 
 	void on_advanced_squash(CCObject*) {
@@ -223,13 +277,19 @@ public:
 		auto* editor_ui = editor->m_editorUI;
 		auto* objs = CCArray::create();
 
-		const float horizontal_squish = m_advanced_squash_enabled ? m_horizontal_squish : 0.f;
+		const bool spiral_enabled = m_spiral_mode_enabled;
+		const float horizontal_squish = m_advanced_squash_enabled ? m_horizontal_squish : (spiral_enabled ? m_fat : 0.f);
 		const float vertical_squish = m_advanced_squash_enabled ? m_vertical_squish : m_fat;
-		const auto calc = [horizontal_squish, vertical_squish](float angle) {
+		const float spiral_turns = spiral_enabled ? m_spiral_turns : 1.f;
+		const float arc = m_angle == 0.f ? 1.f : m_angle;
+		const auto calc = [horizontal_squish, vertical_squish, spiral_turns, spiral_enabled, arc](float angle) {
 			const float radians = angle / 180.f * 3.141592f;
+			const float progress = angle / arc;
+			const float path_radians = spiral_enabled ? progress * spiral_turns * 2.f * 3.141592f : radians;
+			const float radius = spiral_enabled ? progress : 1.f;
 			return CCPoint{
-				sinf(radians) * horizontal_squish,
-				cosf(radians) * vertical_squish,
+				sinf(path_radians) * horizontal_squish * radius,
+				cosf(path_radians) * vertical_squish * radius,
 			};
 		};
 		CCPoint off_acc = calc(0);
@@ -276,6 +336,17 @@ public:
 			"ok", nullptr, 400.f
 		)->show();
 	}
+
+	void on_spiral_info(CCObject*) {
+		FLAlertLayer::create(nullptr, "Spiral Mode",
+			"Spiral Mode sends each duplicate farther from the center while it rotates.\n"
+			"<cy>Spiral Turns</c> controls how many full loops the pattern makes across the Arc.\n"
+			"Start with <cy>Arc 360</c>, <cy>Step 5</c>, <cy>Squish 100</c>, and <cy>Spiral Turns 1</c>.\n"
+			"With Advanced Squash, try <cy>Horizontal 100</c> and <cy>Vertical 100</c>.\n"
+			"Use the squash values to shape the spiral horizontally and vertically.",
+			"ok", nullptr, 460.f
+		)->show();
+	}
 };
 
 float CircleToolPopup::m_angle = 180.0f;
@@ -283,7 +354,9 @@ float CircleToolPopup::m_step = 5.f;
 float CircleToolPopup::m_fat = 0.f;
 float CircleToolPopup::m_horizontal_squish = 0.f;
 float CircleToolPopup::m_vertical_squish = 0.f;
+float CircleToolPopup::m_spiral_turns = 1.f;
 bool CircleToolPopup::m_advanced_squash_enabled = false;
+bool CircleToolPopup::m_spiral_mode_enabled = false;
 
 
 class $modify(MyEditorUI, EditorUI) {
