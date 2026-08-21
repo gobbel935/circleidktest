@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ## v2.0.0
 - Full GUI overhaul: the popup is now organized into a Mode sidebar (left) and a
   two-tab parameter panel (Basic / Advanced, right), so only a small, predictable
@@ -21,15 +20,6 @@
   (opacity + scale) so it's obvious what's currently selected.
 - Add a live "Copies / Objects" counter and a mode-specific info popup that
   updates to explain whichever Mode is currently active.
-=======
-## Unreleased
-- Redesign the popup with a clean mode sidebar and one focused parameter panel.
-- Add active Circle/Spiral and Basic/Advanced selectors with context-aware info help.
-- Harden numeric input handling and copy-count calculations against invalid or zero values.
-- Add Spiral Mode with a Spiral Turns control and an in-popup info guide for beginner-friendly setup.
-- Fix the `Advanced Squash` toggle so advanced controls appear when enabled and the basic `Squish` control returns when disabled.
-- Add an `Advanced Squash` toggle that reveals independent `Squash Horizontal` and `Squash Vertical` controls.
->>>>>>> 0bf6b945ae46b5187377e234b58aa28e25ac1984
 
 ## 1.2.3
 - Remake the popup using Geode's classes, preventing a touch handler leak
